@@ -124,7 +124,7 @@ Add the following entry to the Windows hosts file:
 `C:\Windows\System32\drivers\etc\hosts`
 
 ```text
-10.10.200.170 node-react.local
+<master-ip> node-react.local
 ```
 
 Open:
