@@ -1,9 +1,9 @@
 # Node.js / React / PostgreSQL Platform
-
+![App Screenshot](ss02.png)
 A containerized Node.js + React + PostgreSQL application with Docker Compose for local development and Kubernetes manifests for cluster deployment. The platform includes Redis-backed background processing, search infrastructure, ingress routing, autoscaling, and monitoring components.
 
 ## 1. Technology Stack
-
+![App Screenshot](ss01.png)
 | Service | Technology | Port | Purpose |
 |---|---|---:|---|
 | Frontend | React + Vite + Nginx | 80 | Web UI |
