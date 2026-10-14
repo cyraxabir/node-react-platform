@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+.github
+
+# Node
+node_modules
+npm-debug.log
+package-lock.json
+
+# Build artifacts
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+test
+coverage
+*.test.js
+
+# Documentation
+README.md
+docs
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile

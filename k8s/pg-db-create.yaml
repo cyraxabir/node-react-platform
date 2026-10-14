@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-db-creator
+  namespace: dev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: postgres-db-creator
+  namespace: dev
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: postgres-db-creator
+  namespace: dev
+subjects:
+  - kind: ServiceAccount
+    name: postgres-db-creator
+    namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: postgres-db-creator
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-create-db
+  namespace: dev
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 180
+  template:
+    metadata:
+      labels:
+        app: postgres-create-db
+    spec:
+      serviceAccountName: postgres-db-creator
+      restartPolicy: Never
+      containers:
+        - name: create-database
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              echo "Waiting for PostgreSQL pod..."
+              until kubectl get pod postgres-0 -n dev >/dev/null 2>&1; do
+                sleep 3
+              done
+
+              echo "Checking PostgreSQL readiness..."
+              until kubectl exec -n dev postgres-0 -- \
+                pg_isready -U appuser -d template1; do
+                sleep 3
+              done
+
+              echo "Creating appdb if it does not exist..."
+              kubectl exec -n dev postgres-0 -- sh -ec '
+                if psql -U "$POSTGRES_USER" -d template1 -tAc \
+                  "SELECT 1 FROM pg_database WHERE datname = '\''appdb'\''" \
+                  | grep -q 1; then
+                  echo "Database appdb already exists."
+                else
+                  createdb -U "$POSTGRES_USER" appdb
+                  echo "Database appdb created."
+                fi
+              '
+
+              echo "Verifying database..."
+              kubectl exec -n dev postgres-0 -- \
+                psql -U appuser -d appdb -c 'SELECT current_database();'

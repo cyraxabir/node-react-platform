@@ -1,0 +1,72 @@
+# Root .dockerignore: excludes unnecessary files from ALL build contexts
+
+# Version Control
+.git
+.gitignore
+.github
+.gitattributes
+
+# Package Managers
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+package-lock.json
+
+# Build & Artifacts
+dist
+build
+*.tsbuildinfo
+.turbo
+
+# Environment Files
+.env
+.env.local
+.env.*.local
+.env.example
+.env*.backup
+
+# IDE & Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+.c9/
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Documentation
+README.md
+*.md
+docs
+CHANGELOG.md
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+.circleci
+
+# Testing & Coverage
+test
+tests
+coverage
+*.test.js
+*.spec.js
+__tests__
+__mocks__
+
+# Logs
+logs
+*.log
+
+# Misc
+.cache
+.eslintcache
+.prettierignore

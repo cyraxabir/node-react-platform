@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: node-react-postgres-pv
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: postgres-nfs
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    server: 10.10.200.70
+    path: /var/k8s-nfs/react/postgres
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: dev
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: postgres-nfs
+  volumeName: node-react-postgres-pv
+  resources:
+    requests:
+      storage: 2Gi

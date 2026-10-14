@@ -1,0 +1,240 @@
+# Production-grade orchestration for Node.js + React + PostgreSQL + Redis
+# PRODUCTION SLIM STACK - Optimized for size, security, and performance
+
+services:
+  # PostgreSQL: Relational Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    pull_policy: missing
+
+    environment:
+      POSTGRES_USER: ${DB_USER:-appuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-appdb}
+      POSTGRES_INITDB_ARGS: >
+        -c max_connections=200
+        -c shared_buffers=256MB
+        -c effective_cache_size=1GB
+        -c maintenance_work_mem=64MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c work_mem=4MB
+
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-appuser} -d ${DB_NAME:-appdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=postgres"
+
+
+  # Redis: Cache layer + Job Queue
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    pull_policy: missing
+
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfilename redis-aof.aof
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --tcp-backlog 511
+      --timeout 0
+      --databases 16
+
+    ports:
+      - "127.0.0.1:6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+        labels: "service=redis"
+
+
+  # Backend: Node.js Express API (PRODUCTION SLIM)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      cache_from:
+        - type=registry,ref=${REGISTRY:-docker.io}/${REGISTRY_USER:-local}/backend:latest
+
+    image: ${REGISTRY:-docker.io}/${REGISTRY_USER:-local}/backend:${VERSION:-latest}
+    container_name: backend
+    restart: unless-stopped
+    pull_policy: build
+
+    env_file:
+      - .env
+
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NODE_OPTIONS: --enable-source-maps
+
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-appuser}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_NAME: ${DB_NAME:-appdb}
+      DB_WRITE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-appdb}
+      DB_READ_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-appdb}
+
+      REDIS_URL: redis://redis:6379/0
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      API_PORT: "3000"
+
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=backend,env=${NODE_ENV:-production}"
+
+
+  # Frontend: React/Vite via nginx (PRODUCTION SLIM)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      cache_from:
+        - type=registry,ref=${REGISTRY:-docker.io}/${REGISTRY_USER:-local}/frontend:latest
+
+    image: ${REGISTRY:-docker.io}/${REGISTRY_USER:-local}/frontend:${VERSION:-latest}
+    container_name: frontend
+    restart: unless-stopped
+    pull_policy: build
+
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+
+    ports:
+      - "127.0.0.1:80:80"
+
+    depends_on:
+      - backend
+
+    networks:
+      - app-network
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+        labels: "service=frontend,env=${NODE_ENV:-production}"
+
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
+
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+
+
+networks:
+  app-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1500
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1

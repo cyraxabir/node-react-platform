@@ -1,0 +1,75 @@
+# syntax=docker/dockerfile:1.4
+# Production-optimized Node.js backend - Lightweight + optimal security
+# Multi-stage: deps → builder → minimal alpine
+# Final image: ~26MB - Alpine with strict user privileges, no dev tools
+
+# Stage 1: Dependencies  
+FROM node:22-alpine AS deps
+
+WORKDIR /build
+COPY backend/package*.json ./
+
+RUN npm ci --omit=dev --no-audit && \
+    npm cache clean --force && \
+    find node_modules -type f \( \
+      -name "*.md" -o -name "*.txt" -o -name "*.html" \
+      -name "LICENSE*" -o -name "CHANGELOG*" -o -name "*.map" \
+      -o -name "*.ts" -o -name "*.jsx" -o -name "tsconfig.json" \
+    \) -delete && \
+    find node_modules -type d \( \
+      -name "test" -o -name "tests" -o -name "__tests__" \
+      -o -name "examples" -o -name "docs" -o -name ".bin" \
+      -o -name "bin" -o -path "*/node_modules/*/test" \
+    \) ! -path "*/.bin*" -exec rm -rf {} + 2>/dev/null || true && \
+    rm -f package-lock.json
+
+
+# Stage 2: Builder  
+FROM node:22-alpine AS builder
+
+WORKDIR /build
+COPY --from=deps /build/node_modules ./node_modules
+COPY backend/package.json ./
+COPY backend/src ./src
+
+RUN node -c src/index.js
+
+
+# Stage 3: Lightweight runtime (Alpine minimal)
+FROM alpine:3.20
+
+WORKDIR /app
+
+# Install only Node.js and essential runtime
+RUN apk add --no-cache \
+      nodejs \
+      tini \
+      ca-certificates \
+    && \
+    # Remove package cache/metadata
+    rm -rf /var/cache/apk/* /var/lib/apk/lists/* && \
+    # Remove docs/locales
+    rm -rf /usr/share/man /usr/share/doc /usr/share/info /usr/share/locale && \
+    # Create non-root user
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 && \
+    mkdir -p /app && \
+    chown -R nodejs:nodejs /app
+
+# Copy production files only
+COPY --from=deps --chown=nodejs:nodejs /build/node_modules ./node_modules
+COPY --from=builder --chown=nodejs:nodejs /build/package.json ./
+COPY --from=builder --chown=nodejs:nodejs /build/src ./src
+
+USER nodejs
+
+LABEL maintainer="platform" \
+      description="Production Node.js backend (Alpine minimal)" \
+      version="1.0"
+
+ENV PORT=4000
+EXPOSE 4000
+
+# Use tini for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "src/index.js"]
