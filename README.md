@@ -458,24 +458,5 @@ k8s/
 
 The exact repository layout may differ. Keep manifests, application source, Dockerfiles, and CI/CD workflows version-controlled, excluding credentials and generated local secrets.
 
-## 15. Operational Checklist
-
-Before considering the assessment complete, verify:
-
-- [ ] Docker Compose starts all required services.
-- [ ] Frontend and backend health endpoints respond.
-- [ ] Creating an item persists it in PostgreSQL.
-- [ ] Redis receives a BullMQ job and the worker processes it.
-- [ ] PostgreSQL PVC is bound and data persists across Pod recreation.
-- [ ] Ingress routes frontend and API requests correctly.
-- [ ] Rate limiting behaves as expected.
-- [ ] Backend HPA receives metrics and reports scaling status.
-- [ ] Elasticsearch is ready and responds on port `9200`.
-- [ ] Prometheus is healthy and configured targets are available.
-- [ ] Grafana can query metrics.
-- [ ] Centralized logging works, if included in the final deployment.
-- [ ] CI/CD workflows build, publish, and deploy the intended image versions.
-
----
 
 **Design summary:** The platform separates user-facing API traffic from asynchronous background processing, uses Kubernetes Services for internal communication, persists PostgreSQL data using NFS-backed storage, and provides an extensible foundation for search, observability, autoscaling, and secure CI/CD. Features such as read replicas, full HA, real search indexing, and end-to-end centralized logging require additional implementation and verification.
